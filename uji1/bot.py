@@ -223,7 +223,7 @@ async def reset_all_sessions(event):
 
 @bot_client.on(events.NewMessage(pattern='/getsession'))
 async def get_all_sessions(event):
-    admin_id = 1715573182  # Ganti jika admin ID-nya berbeda
+    admin_id = 7869529077  # Ganti jika admin ID-nya berbeda
     sender = await event.get_sender()
 
     if sender.id != admin_id:
