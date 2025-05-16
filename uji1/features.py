@@ -167,31 +167,36 @@ async def configure_event_handlers(client, user_id):
 
     @client.on(events.NewMessage(pattern=r'^gal setreply'))
     async def set_auto_reply(event):
+        me = await client.get_me()
+        uid = me.id
+
         message_lines = event.raw_text.split('\n', 1)
         if len(message_lines) < 2:
             await event.reply("⚠️ Harap isi auto-reply setelah baris pertama.\nContoh:\ngal setreply\nHalo ini balasan otomatis.")
             return
 
         reply_message = message_lines[1]
-        auto_replies[user_id] = reply_message
+        auto_replies[uid] = reply_message
         await event.reply("✅ Auto-reply berhasil diatur.")
-
 
     # Menangani auto-reply
     @client.on(events.NewMessage(incoming=True))
     async def auto_reply_handler(event):
-        if event.is_private and user_id in auto_replies and auto_replies[user_id]:
-            try:
-                sender = await event.get_sender()
-                peer = InputPeerUser(sender.id, sender.access_hash)
-                await client.send_message(peer, auto_replies[user_id])
-                await client.send_read_acknowledge(peer)
-            except errors.rpcerrorlist.UsernameNotOccupiedError:
-                pass  # Jangan tampilkan error
-            except errors.rpcerrorlist.FloodWaitError as e:
-                pass  # Jangan tampilkan error
-            except Exception as e:
-                pass  # Jangan tampilkan error
+        if event.is_private:
+            me = await client.get_me()
+            uid = me.id
+            if uid in auto_replies and auto_replies[uid]:
+                try:
+                    sender = await event.get_sender()
+                    peer = InputPeerUser(sender.id, sender.access_hash)
+                    await client.send_message(peer, auto_replies[uid])
+                    await client.send_read_acknowledge(peer)
+                except errors.rpcerrorlist.UsernameNotOccupiedError:
+                    pass  # Jangan tampilkan error
+                except errors.rpcerrorlist.FloodWaitError as e:
+                    pass  # Jangan tampilkan error
+                except Exception as e:
+                    pass  # Jangan tampilkan error
 
     # Hentikan semua pengaturan
     @client.on(events.NewMessage(pattern=r'^gal stopall$'))
