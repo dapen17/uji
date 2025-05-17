@@ -1,0 +1,6 @@
+
+schedule
+telebot
+python-dotenv==0.20.0
+python-telegram-bot==20.0a5
+python-dotenv==0.20.0

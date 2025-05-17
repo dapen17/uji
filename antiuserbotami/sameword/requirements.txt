@@ -1,0 +1,4 @@
+python-telegram-bot==20.7
+schedule
+telebot
+python-dotenv==0.20.0
