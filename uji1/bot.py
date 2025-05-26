@@ -2,7 +2,8 @@ import os
 import json
 import asyncio
 from telethon import TelegramClient, events, errors
-from features import configure_event_handlers  # Import fitur tambahan
+from features import configure_event_handlers, save_state, load_state  # Import fitur tambahan
+import time
 
 # Load konfigurasi dari file
 CONFIG_FILE = 'config.json'
@@ -29,7 +30,7 @@ bot_client = TelegramClient('bot_session', api_id, api_hash)
 
 # Variabel global untuk menghitung total sesi
 total_sessions = 0
-MAX_SESSIONS = 50  # Batas maksimal sesi (ubah menjadi 10)
+MAX_SESSIONS = 8  # Batas maksimal sesi (ubah menjadi 10)
 
 # Dictionary untuk menyimpan sesi pengguna sementara
 user_sessions = {}  # Struktur: {user_id: [{'client': TelegramClient, 'phone': str}]}
@@ -152,6 +153,7 @@ async def login(event):
                 user_sessions[user_id].append({"client": user_client, "phone": phone})
                 await event.reply(f"✅ Anda sudah login sebelumnya! Langsung terhubung sebagai {phone}.")
                 await configure_event_handlers(user_client, user_id)
+                save_state()  # Simpan state setelah login berhasil
                 return
             else:
                 await user_client.disconnect()
@@ -201,6 +203,7 @@ async def verify(event):
         await user_client.sign_in(phone, code)
         await event.reply(f"✅ Verifikasi berhasil untuk nomor {phone}! Anda sekarang dapat menggunakan fitur.")
         await configure_event_handlers(user_client, user_id)
+        save_state()  # Simpan state setelah verifikasi berhasil
     except errors.SessionPasswordNeededError:
         await event.reply("⚠️ Kode OTP benar, tapi akun ini mengaktifkan verifikasi dua langkah (password).\n"
                           "Silakan masukkan password Anda dengan perintah:\n"
@@ -220,8 +223,15 @@ async def logout(event):
     session_file = os.path.join(SESSION_DIR, f'{user_id}_{phone.replace("+", "")}.session')
 
     if os.path.exists(session_file):
+        # Cari dan hapus client dari user_sessions
+        if user_id in user_sessions:
+            user_sessions[user_id] = [s for s in user_sessions[user_id] if s["phone"] != phone.replace("+", "")]
+            if not user_sessions[user_id]:
+                del user_sessions[user_id]
+        
         os.remove(session_file)
         total_sessions -= 1  # Kurangi jumlah total sesi
+        save_state()  # Simpan state setelah logout
         await event.reply(f"✅ Berhasil logout untuk nomor {phone}.")
     else:
         await event.reply(f"⚠️ Tidak ada sesi aktif untuk nomor {phone}.")
@@ -248,7 +258,6 @@ async def list_accounts(event):
     else:
         await event.reply(f"⚠️ Tidak ada akun yang login untuk Anda.\n"
                           f"Total akun yang login: {total_sessions}/{MAX_SESSIONS}")
-
 
 
 @bot_client.on(events.NewMessage(pattern='/resetall'))
@@ -341,17 +350,101 @@ async def run_bot():
     # Memuat sesi yang ada saat bot pertama kali dijalankan
     await load_existing_sessions()
     
+    max_retries = 5  # Jumlah maksimal percobaan reconnection
+    retry_delay = 10  # Delay antara percobaan reconnection (dalam detik)
+    retry_count = 0
+    
     while True:
         try:
             print("Bot berjalan!")
-            await bot_client.start(bot_token=bot_token)
+            if not bot_client.is_connected():
+                await bot_client.connect()
+            
+            if not await bot_client.is_user_authorized():
+                await bot_client.start(bot_token=bot_token)
+            
             await bot_client.run_until_disconnected()
+            retry_count = 0  # Reset retry counter after successful run
+            
+        except errors.ConnectionError as e:
+            retry_count += 1
+            print(f"Koneksi terputus ({retry_count}/{max_retries}): {e}")
+            if retry_count >= max_retries:
+                print("Mencoba reconnect semua sesi...")
+                await reconnect_all_sessions()
+                retry_count = 0
+            await asyncio.sleep(retry_delay)
+            
         except (errors.FloodWaitError, errors.RPCError) as e:
             print(f"Telegram error: {e}. Tunggu sebelum mencoba lagi.")
-            await asyncio.sleep(5)
+            await asyncio.sleep(retry_delay)
+            
         except Exception as e:
-            print(f"Error tidak terduga: {e}. Restart dalam 10 detik...")
-            await asyncio.sleep(10)
+            print(f"Error tidak terduga: {e}. Restart dalam {retry_delay} detik...")
+            await asyncio.sleep(retry_delay)
+            
+        finally:
+            # Pastikan client terputus dengan benar sebelum mencoba reconnect
+            try:
+                if bot_client.is_connected():
+                    await bot_client.disconnect()
+            except:
+                pass
+
+async def reconnect_all_sessions():
+    """Fungsi untuk reconnect semua sesi user"""
+    global total_sessions
+    
+    print("Memulai proses reconnect semua sesi...")
+    disconnected_sessions = 0
+    
+    for user_id in list(user_sessions.keys()):
+        for session_data in list(user_sessions[user_id]):  # Gunakan list() untuk membuat copy
+            client = session_data['client']
+            phone = session_data['phone']
+            session_file = client.session.filename
+            
+            try:
+                if client.is_connected():
+                    await client.disconnect()
+                
+                await client.connect()
+                
+                if not await client.is_user_authorized():
+                    print(f"Sesi {phone} tidak valid, menghapus...")
+                    try:
+                        await client.disconnect()
+                    except:
+                        pass
+                    if os.path.exists(session_file):
+                        os.remove(session_file)
+                    user_sessions[user_id].remove(session_data)
+                    total_sessions -= 1
+                    disconnected_sessions += 1
+                else:
+                    print(f"Berhasil reconnect sesi {phone}")
+                    
+            except Exception as e:
+                print(f"Gagal reconnect sesi {phone}: {e}")
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+                if os.path.exists(session_file):
+                    os.remove(session_file)
+                user_sessions[user_id].remove(session_data)
+                total_sessions -= 1
+                disconnected_sessions += 1
+    
+    print(f"Proses reconnect selesai. {disconnected_sessions} sesi terputus.")
 
 if __name__ == '__main__':
-    asyncio.run(run_bot())
+    while True:
+        try:
+            asyncio.run(run_bot())
+        except KeyboardInterrupt:
+            print("\nBot dihentikan oleh user")
+            break
+        except Exception as e:
+            print(f"Error fatal: {e}. Restarting bot dalam 10 detik...")
+            time.sleep(10)
