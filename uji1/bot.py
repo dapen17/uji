@@ -100,20 +100,18 @@ async def load_existing_sessions():
 
 @bot_client.on(events.NewMessage(pattern='/restart'))
 async def restart_command(event):
-    admin_ids = {1715573182, 7869529077}  # Ganti dengan ID admin Anda
+    # Hapus pengecekan admin ID
+    # Hanya pemilik sesi yang bisa restart bot mereka sendiri
     sender = await event.get_sender()
+    user_id = sender.id
     
-    if sender.id not in admin_ids:
-        await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
-        return
+    await event.reply("🔄 Memulai proses restart sesi Anda...")
     
-    await event.reply("🔄 Memulai proses restart bot...")
-    
-    # Simpan semua state sebelum restart
+    # Simpan state sebelum restart
     save_state()
     
-    # Matikan semua koneksi dengan benar
-    for user_id in list(user_sessions.keys()):
+    # Hanya matikan koneksi untuk sesi pengguna ini
+    if user_id in user_sessions:
         for session_data in list(user_sessions[user_id]):
             try:
                 await session_data['client'].disconnect()
