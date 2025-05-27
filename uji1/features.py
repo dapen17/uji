@@ -17,75 +17,6 @@ active_bc_interval = defaultdict(lambda: defaultdict(bool))
 broadcast_data = defaultdict(dict)
 blacklist = set()
 auto_replies = defaultdict(str)
-# Tambahkan di bagian atas bersama dengan variabel lainnya
-reply_counters = defaultdict(lambda: defaultdict(int))
-last_reset_date = get_today_date()
-
-# Fungsi untuk mereset counter setiap hari
-def reset_counters_if_needed():
-    global last_reset_date
-    today = get_today_date()
-    if today != last_reset_date:
-        reply_counters.clear()
-        last_reset_date = today
-        save_state()
-
-def save_state():
-    state = {
-        'active_bc_interval': {str(k): dict(v) for k, v in active_bc_interval.items()},
-        'auto_replies': dict(auto_replies),
-        'blacklist': list(blacklist),
-        'active_groups': {str(k): dict(v) for k, v in active_groups.items()},
-        'broadcast_data': {
-            str(user_id): {
-                bc_type: data for bc_type, data in user_data.items()
-            } for user_id, user_data in broadcast_data.items()
-        },
-        'reply_counters': {
-            str(uid): dict(counters) for uid, counters in reply_counters.items()
-        },
-        'last_reset_date': last_reset_date
-    }
-    with open(STATE_FILE, 'w') as f:
-        json.dump(state, f)
-
-def load_state():
-    global active_bc_interval, auto_replies, blacklist, active_groups, broadcast_data, reply_counters, last_reset_date
-    
-    if not os.path.exists(STATE_FILE):
-        return
-    
-    try:
-        with open(STATE_FILE, 'r') as f:
-            state = json.load(f)
-        
-        active_bc_interval.clear()
-        for user_id, data in state.get('active_bc_interval', {}).items():
-            active_bc_interval[int(user_id)] = defaultdict(bool, data)
-        
-        auto_replies.clear()
-        for user_id, reply in state.get('auto_replies', {}).items():
-            auto_replies[int(user_id)] = reply
-        
-        blacklist.clear()
-        blacklist.update(set(state.get('blacklist', [])))
-        
-        active_groups.clear()
-        for group_id, data in state.get('active_groups', {}).items():
-            active_groups[int(group_id)] = defaultdict(bool, data)
-            
-        broadcast_data.clear()
-        for user_id, user_data in state.get('broadcast_data', {}).items():
-            broadcast_data[int(user_id)] = user_data
-            
-        reply_counters.clear()
-        for uid, counters in state.get('reply_counters', {}).items():
-            reply_counters[int(uid)] = defaultdict(int, counters)
-            
-        last_reset_date = state.get('last_reset_date', get_today_date())
-            
-    except Exception as e:
-        print(f"Gagal memuat state: {e}")
 
 def parse_interval(interval_str):
     match = re.match(r'^(\d+)([smhd])$', interval_str)
@@ -299,6 +230,10 @@ async def configure_event_handlers(client, user_id):
 
     @client.on(events.NewMessage(pattern=r'^gal setreply'))
     async def set_auto_reply(event):
+        # Cek apakah pesan berasal dari akun pengguna (bukan bot, bukan grup/channel)
+        if not event.is_private or (await event.get_sender()).bot:
+            return
+            
         me = await client.get_me()
         uid = me.id
         message_lines = event.raw_text.split('\n', 1)
@@ -311,32 +246,18 @@ async def configure_event_handlers(client, user_id):
         save_state()
         await event.reply("✅ Auto-reply berhasil diatur.")
 
-    # Modifikasi auto_reply_handler
     @client.on(events.NewMessage(incoming=True))
     async def auto_reply_handler(event):
-        if event.is_private:
+        # Cek apakah pesan berasal dari akun pengguna (bukan bot, bukan grup/channel)
+        if event.is_private and not (await event.get_sender()).bot:
             me = await client.get_me()
             uid = me.id
             if uid in auto_replies and auto_replies[uid]:
-                # Reset counters jika sudah hari baru
-                reset_counters_if_needed()
-                
-                # Dapatkan ID pengirim
-                sender_id = event.sender_id
-                
-                # Cek apakah sudah mencapai limit 5x
-                if reply_counters[uid][sender_id] >= 5:
-                    return
-                    
                 try:
                     sender = await event.get_sender()
                     peer = InputPeerUser(sender.id, sender.access_hash)
                     await client.send_message(peer, auto_replies[uid])
                     await client.send_read_acknowledge(peer)
-                    
-                    # Tambah counter
-                    reply_counters[uid][sender_id] += 1
-                    save_state()
                 except errors.rpcerrorlist.UsernameNotOccupiedError:
                     pass
                 except errors.rpcerrorlist.FloodWaitError:
