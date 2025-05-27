@@ -122,94 +122,88 @@ async def reconnect_command(event):
 
 @bot_client.on(events.NewMessage(pattern='/reconect'))
 async def full_reconnect_command(event):
-    """Fitur baru untuk reconnect semua sesi dengan laporan lengkap"""
-    admin_ids = {1715573182, 7869529077}  # Tambahkan semua ID admin di sini
+    """Fitur untuk reconnect semua sesi dengan pembersihan menyeluruh"""
+    admin_ids = {1715573182, 7869529077}  # ID admin
     sender = await event.get_sender()
 
     if sender.id not in admin_ids:
         await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
         return
 
-    response_message = "🔍 Memuat sesi yang ada...\n"
+    response_message = "🔍 Memuat dan membersihkan sesi...\n"
     valid_count = 0
     invalid_count = 0
-    processed_sessions = set()  # Untuk melacak sesi yang sudah diproses
 
-    # Pertama, hapus semua sesi yang tidak valid
-    for session_file in os.listdir(SESSION_DIR):
-        if session_file.endswith('.session'):
-            session_path = os.path.join(SESSION_DIR, session_file)
+    # Buat daftar sesi yang akan diproses
+    session_files = [f for f in os.listdir(SESSION_DIR) if f.endswith('.session')]
+    
+    # Bersihkan dulu semua sesi yang tidak valid
+    for session_file in session_files:
+        session_path = os.path.join(SESSION_DIR, session_file)
+        try:
+            phone = session_file.split('_')[1].replace('.session', '')
+        except:
+            phone = "unknown"
             
-            try:
-                client = TelegramClient(session_path, api_id, api_hash)
+        try:
+            async with TelegramClient(session_path, api_id, api_hash) as client:
                 await client.connect()
-                
                 if not await client.is_user_authorized():
-                    if os.path.exists(session_path):
-                        os.remove(session_path)
-                    print(f"Membersihkan sesi tidak valid: {session_file}")
-                
-                await client.disconnect()
-            except:
-                if os.path.exists(session_path):
+                    invalid_count += 1
+                    response_message += f"⚠ Sesi untuk {phone} tidak valid (dihapus).\n"
                     os.remove(session_path)
-                print(f"Membersihkan sesi error: {session_file}")
+                    continue
+        except Exception as e:
+            invalid_count += 1
+            response_message += f"⚠ Sesi untuk {phone} error: {str(e)} (dihapus).\n"
+            if os.path.exists(session_path):
+                os.remove(session_path)
+            continue
 
-    # Sekarang reconnect semua sesi yang tersisa
-    for session_file in os.listdir(SESSION_DIR):
-        if session_file.endswith('.session'):
-            session_path = os.path.join(SESSION_DIR, session_file)
+    # Sekarang reconnect semua sesi yang tersisa (yang valid)
+    session_files = [f for f in os.listdir(SESSION_DIR) if f.endswith('.session')]
+    for session_file in session_files:
+        session_path = os.path.join(SESSION_DIR, session_file)
+        try:
+            phone = session_file.split('_')[1].replace('.session', '')
+        except:
+            phone = "unknown"
             
-            if session_file in processed_sessions:
-                continue
-                
-            processed_sessions.add(session_file)
-            
-            try:
-                phone = session_file.split('_')[1].replace('.session', '')
-            except:
-                phone = "unknown"
-            
-            try:
-                client = TelegramClient(session_path, api_id, api_hash)
+        try:
+            async with TelegramClient(session_path, api_id, api_hash) as client:
                 await client.connect()
-                
                 if await client.is_user_authorized():
-                    response_message += f"✅ Sesi untuk {phone} berhasil dihubungkan kembali.\n"
-                    valid_count += 1
-                    
                     user_id = int(session_file.split('_')[0])
                     if user_id not in user_sessions:
                         user_sessions[user_id] = []
                     
+                    # Cek apakah sesi sudah ada
                     session_exists = any(
-                        session['phone'] == phone 
-                        for session in user_sessions.get(user_id, [])
+                        s['phone'] == phone for s in user_sessions.get(user_id, [])
                     )
                     
                     if not session_exists:
-                        user_sessions[user_id].append({"client": client, "phone": phone})
+                        user_sessions[user_id].append({
+                            "client": client,
+                            "phone": phone
+                        })
                         await configure_event_handlers(client, user_id)
-                else:
-                    response_message += f"⚠ Sesi untuk {phone} tidak valid (dihapus).\n"
-                    invalid_count += 1
-                    if os.path.exists(session_path):
-                        os.remove(session_path)
-            except Exception as e:
-                response_message += f"⚠ Sesi untuk {phone} error: {str(e)} (dihapus).\n"
-                invalid_count += 1
-                if os.path.exists(session_path):
-                    os.remove(session_path)
-            finally:
-                try:
-                    if 'client' in locals() and client.is_connected():
-                        await client.disconnect()
-                except:
-                    pass
+                        valid_count += 1
+                        response_message += f"✅ Sesi untuk {phone} berhasil dihubungkan.\n"
+        except Exception as e:
+            invalid_count += 1
+            response_message += f"⚠ Gagal reconnect {phone}: {str(e)} (dihapus).\n"
+            if os.path.exists(session_path):
+                os.remove(session_path)
 
-    response_message += f"\n✅ Total {valid_count} sesi berhasil dimuat.\n"
-    response_message += f"⚠ Total {invalid_count} sesi tidak valid/dihapus.\n"
-    response_message += "Bot berjalan!"
+    # Update total sesi
+    global total_sessions
+    total_sessions = valid_count
+
+    response_message += f"\n📊 Hasil:\n"
+    response_message += f"✅ {valid_count} sesi valid\n"
+    response_message += f"⚠ {invalid_count} sesi tidak valid/dihapus\n"
+    response_message += "Bot berjalan dengan lancar!"
 
     await event.reply(response_message)
 
