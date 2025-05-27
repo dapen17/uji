@@ -71,10 +71,16 @@ async def reconnect_session(session_path):
                 return False
         else:
             await user_client.disconnect()
-            print(f"⚠️ Sesi untuk {phone} tidak valid.")
+            # Hapus file sesi yang tidak valid
+            if os.path.exists(session_path):
+                os.remove(session_path)
+            print(f"⚠️ Sesi untuk {phone} tidak valid dan telah dihapus.")
             return False
     except Exception as e:
         print(f"⚠️ Gagal menghubungkan sesi {session_path}: {e}")
+        # Hapus file sesi yang error
+        if os.path.exists(session_path):
+            os.remove(session_path)
         return False
 
 # Fungsi untuk memuat semua sesi yang ada di folder sessions/
