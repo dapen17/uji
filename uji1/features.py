@@ -141,15 +141,26 @@ async def configure_event_handlers(client, user_id):
 
     @client.on(events.NewMessage(pattern=r'^gal bcstar (.+)$'))
     async def broadcast_handler(event):
+        # Cek apakah pengirim adalah akun RC (bukan bot)
+        sender = await event.get_sender()
+        if sender.bot:
+            return
+            
         custom_message = event.pattern_match.group(1)
-        await event.reply(f"✅ Memulai broadcast ke semua chat: {custom_message}")
+        await event.reply(f"✅ Memulai broadcast ke semua grup: {custom_message}")
+        
         async for dialog in client.iter_dialogs():
-            if dialog.id in blacklist:
-                continue
-            try:
-                await client.send_message(dialog.id, custom_message)
-            except Exception:
-                pass
+            # Hanya kirim ke grup yang bukan blacklist dan bukan channel/bot
+            if (
+                dialog.is_group and 
+                dialog.id not in blacklist and
+                not dialog.entity.bot and
+                not getattr(dialog.entity, 'broadcast', False)  # Bukan channel
+            ):
+                try:
+                    await client.send_message(dialog.id, custom_message)
+                except Exception as e:
+                    print(f"Gagal mengirim ke grup {dialog.id}: {e}")
 
     @client.on(events.NewMessage(pattern=r'^gal bcstargr(\d+) (\d+[smhd]) (.+)$'))
     async def broadcast_group_handler(event):
