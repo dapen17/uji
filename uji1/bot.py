@@ -122,17 +122,26 @@ async def reconnect_command(event):
 
 @bot_client.on(events.NewMessage(pattern='/reconnect'))
 async def full_reconnect_command(event):
-    """Fungsi untuk restart semua koneksi seperti fresh start"""
-    admin_ids = {1715573182, 7869529077}  # ID admin
+    """Fitur reconnect yang lebih robust"""
+    admin_ids = {1715573182, 7869529077}
     sender = await event.get_sender()
 
     if sender.id not in admin_ids:
         await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
         return
 
-    await event.reply("🔄 Memulai proses reconnect seperti restart bot...")
+    await event.reply("🔄 Memulai proses reconnect menyeluruh...")
 
-    # 1. Matikan semua koneksi yang ada
+    # 1. Backup session yang sedang aktif
+    active_sessions = []
+    for user_id, sessions in user_sessions.items():
+        for session in sessions:
+            active_sessions.append({
+                'phone': session['phone'],
+                'session_file': f"{user_id}_{session['phone']}.session"
+            })
+
+    # 2. Disconnect semua client
     for user_id in list(user_sessions.keys()):
         for session in user_sessions[user_id]:
             try:
@@ -140,70 +149,66 @@ async def full_reconnect_command(event):
                     await session['client'].disconnect()
             except:
                 pass
-
-    # 2. Bersihkan sesi tidak valid
-    invalid_sessions = []
-    for session_file in os.listdir(SESSION_DIR):
-        if session_file.endswith('.session'):
-            session_path = os.path.join(SESSION_DIR, session_file)
-            try:
-                phone = session_file.split('_')[1].replace('.session', '')
-                async with TelegramClient(session_path, api_id, api_hash) as temp_client:
-                    await temp_client.connect()
-                    if not await temp_client.is_user_authorized():
-                        invalid_sessions.append(session_path)
-            except:
-                invalid_sessions.append(session_path)
-    
-    # Hapus sesi tidak valid
-    for session_path in invalid_sessions:
-        try:
-            os.remove(session_path)
-        except:
-            pass
-
-    # 3. Kosongkan user_sessions
     user_sessions.clear()
     global total_sessions
     total_sessions = 0
 
-    # 4. Muat ulang semua sesi yang valid
+    # 3. Proses reconnect dengan handling lock database
     valid_count = 0
-    output = "🔍 Memuat ulang sesi yang ada...\n"
-    for session_file in os.listdir(SESSION_DIR):
-        if session_file.endswith('.session'):
-            session_path = os.path.join(SESSION_DIR, session_file)
+    output = "🔍 Memuat ulang sesi:\n"
+    
+    for session_info in active_sessions:
+        session_file = session_info['session_file']
+        phone = session_info['phone']
+        session_path = os.path.join(SESSION_DIR, session_file)
+        
+        if not os.path.exists(session_path):
+            output += f"⚠ File sesi {phone} tidak ditemukan\n"
+            continue
+            
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                phone = session_file.split('_')[1].replace('.session', '')
-                user_id = int(session_file.split('_')[0])
-                
-                client = TelegramClient(session_path, api_id, api_hash)
-                await client.connect()
-                
-                if await client.is_user_authorized():
-                    if user_id not in user_sessions:
-                        user_sessions[user_id] = []
+                # Gunakan context manager untuk handle koneksi
+                async with TelegramClient(session_path, api_id, api_hash) as client:
+                    await client.connect()
                     
-                    user_sessions[user_id].append({
-                        "client": client,
-                        "phone": phone
-                    })
-                    await configure_event_handlers(client, user_id)
-                    valid_count += 1
-                    output += f"✅ Sesi untuk {phone} berhasil dihubungkan.\n"
+                    if await client.is_user_authorized():
+                        user_id = int(session_file.split('_')[0])
+                        if user_id not in user_sessions:
+                            user_sessions[user_id] = []
+                            
+                        user_sessions[user_id].append({
+                            "client": client,
+                            "phone": phone
+                        })
+                        await configure_event_handlers(client, user_id)
+                        valid_count += 1
+                        output += f"✅ Sesi {phone} berhasil dihubungkan\n"
+                        break
+                    else:
+                        output += f"⚠ Sesi {phone} tidak valid\n"
+                        try:
+                            os.remove(session_path)
+                        except:
+                            pass
+                        break
+                        
+            except errors.DatabaseLockedError:
+                if attempt == max_retries - 1:
+                    output += f"⚠ Gagal reconnect {phone}: database locked setelah {max_retries} percobaan\n"
                 else:
-                    os.remove(session_path)
-                    output += f"⚠ Sesi untuk {phone} tidak valid (dihapus).\n"
+                    await asyncio.sleep(1)  # Tunggu sebentar sebelum coba lagi
             except Exception as e:
-                output += f"⚠ Gagal memuat sesi {session_file}: {str(e)}\n"
-                try:
-                    os.remove(session_path)
-                except:
-                    pass
+                output += f"⚠ Error pada sesi {phone}: {str(e)}\n"
+                break
 
     total_sessions = valid_count
-    output += f"\n📊 Total {valid_count} sesi aktif\n"
-    output += "🔄 Proses reconnect selesai, bot berjalan fresh!"
+    output += f"\n📊 Hasil:\n"
+    output += f"✅ {valid_count} sesi aktif\n"
+    if valid_count == 0:
+        output += "💡 Tips: Jika sesi valid tapi gagal connect, coba login ulang dengan /login\n"
+    output += "🔄 Proses reconnect selesai!"
 
     await event.reply(output)
 
