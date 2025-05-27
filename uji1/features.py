@@ -139,28 +139,32 @@ async def configure_event_handlers(client, user_id):
     async def ping_handler(event):
         await event.reply("🏓 Pong! Bot aktif.")
 
-    @client.on(events.NewMessage(pattern=r'^gal bcstar (.+)$'))
+        @client.on(events.NewMessage(pattern=r'^gal bcstar (.+)$'))
     async def broadcast_handler(event):
-        # Cek apakah pengirim adalah akun RC (bukan bot)
-        sender = await event.get_sender()
-        if sender.bot:
+        if (await event.get_sender()).bot:
             return
             
         custom_message = event.pattern_match.group(1)
-        await event.reply(f"✅ Memulai broadcast ke semua grup: {custom_message}")
+        await event.reply(f"✅ Broadcast dimulai ke DM dan grup...")
         
         async for dialog in client.iter_dialogs():
-            # Hanya kirim ke grup yang bukan blacklist dan bukan channel/bot
-            if (
-                dialog.is_group and 
-                dialog.id not in blacklist and
-                not dialog.entity.bot and
-                not getattr(dialog.entity, 'broadcast', False)  # Bukan channel
-            ):
+            if dialog.id in blacklist:
+                continue
+                
+            # Kirim ke DM yang pernah chat
+            if dialog.is_user and not dialog.entity.bot:
+                try:
+                    if await client.get_messages(dialog.id, limit=1):
+                        await client.send_message(dialog.id, custom_message)
+                except:
+                    pass
+                    
+            # Kirim ke grup biasa
+            elif dialog.is_group and not getattr(dialog.entity, 'broadcast', False):
                 try:
                     await client.send_message(dialog.id, custom_message)
-                except Exception as e:
-                    print(f"Gagal mengirim ke grup {dialog.id}: {e}")
+                except:
+                    pass
 
     @client.on(events.NewMessage(pattern=r'^gal bcstargr(\d+) (\d+[smhd]) (.+)$'))
     async def broadcast_group_handler(event):
