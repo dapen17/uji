@@ -122,7 +122,7 @@ async def reconnect_command(event):
 
 @bot_client.on(events.NewMessage(pattern='/reconnect'))
 async def full_reconnect_command(event):
-    """Fitur reconnect yang lebih robust"""
+    """Fungsi restart ulang semua koneksi seperti fresh start"""
     admin_ids = {1715573182, 7869529077}
     sender = await event.get_sender()
 
@@ -130,18 +130,9 @@ async def full_reconnect_command(event):
         await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
         return
 
-    await event.reply("🔄 Memulai proses reconnect menyeluruh...")
+    await event.reply("🔄 Memulai ulang semua koneksi seperti restart VPS...")
 
-    # 1. Backup session yang sedang aktif
-    active_sessions = []
-    for user_id, sessions in user_sessions.items():
-        for session in sessions:
-            active_sessions.append({
-                'phone': session['phone'],
-                'session_file': f"{user_id}_{session['phone']}.session"
-            })
-
-    # 2. Disconnect semua client
+    # 1. Matikan semua koneksi yang ada
     for user_id in list(user_sessions.keys()):
         for session in user_sessions[user_id]:
             try:
@@ -149,66 +140,66 @@ async def full_reconnect_command(event):
                     await session['client'].disconnect()
             except:
                 pass
+
+    # 2. Kosongkan session aktif
     user_sessions.clear()
     global total_sessions
     total_sessions = 0
 
-    # 3. Proses reconnect dengan handling lock database
+    # 3. Muat ulang semua sesi dari folder sessions
     valid_count = 0
-    output = "🔍 Memuat ulang sesi:\n"
+    output = "🔍 Memuat ulang sesi dari penyimpanan:\n"
     
-    for session_info in active_sessions:
-        session_file = session_info['session_file']
-        phone = session_info['phone']
+    # Daftar semua file session
+    session_files = [f for f in os.listdir(SESSION_DIR) if f.endswith('.session')]
+    
+    for session_file in session_files:
         session_path = os.path.join(SESSION_DIR, session_file)
-        
-        if not os.path.exists(session_path):
-            output += f"⚠ File sesi {phone} tidak ditemukan\n"
-            continue
+        try:
+            phone = session_file.split('_')[1].replace('.session', '')
+            user_id = int(session_file.split('_')[0])
             
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                # Gunakan context manager untuk handle koneksi
-                async with TelegramClient(session_path, api_id, api_hash) as client:
+            # Coba maksimal 3 kali jika database locked
+            for attempt in range(3):
+                try:
+                    client = TelegramClient(session_path, api_id, api_hash)
                     await client.connect()
                     
                     if await client.is_user_authorized():
-                        user_id = int(session_file.split('_')[0])
                         if user_id not in user_sessions:
                             user_sessions[user_id] = []
-                            
+                        
                         user_sessions[user_id].append({
                             "client": client,
                             "phone": phone
                         })
                         await configure_event_handlers(client, user_id)
                         valid_count += 1
-                        output += f"✅ Sesi {phone} berhasil dihubungkan\n"
+                        output += f"✅ Sesi {phone} berhasil dimuat\n"
                         break
                     else:
                         output += f"⚠ Sesi {phone} tidak valid\n"
-                        try:
-                            os.remove(session_path)
-                        except:
-                            pass
+                        os.remove(session_path)
                         break
                         
-            except errors.DatabaseLockedError:
-                if attempt == max_retries - 1:
-                    output += f"⚠ Gagal reconnect {phone}: database locked setelah {max_retries} percobaan\n"
-                else:
-                    await asyncio.sleep(1)  # Tunggu sebentar sebelum coba lagi
-            except Exception as e:
-                output += f"⚠ Error pada sesi {phone}: {str(e)}\n"
-                break
+                except errors.DatabaseLockedError:
+                    if attempt == 2:  # Percobaan terakhir
+                        output += f"⚠ Gagal muat {phone}: database terkunci\n"
+                    await asyncio.sleep(1)  # Tunggu 1 detik
+                except Exception as e:
+                    output += f"⚠ Error muat {phone}: {str(e)}\n"
+                    break
+
+        except Exception as e:
+            output += f"⚠ Gagal proses {session_file}: {str(e)}\n"
 
     total_sessions = valid_count
-    output += f"\n📊 Hasil:\n"
+    output += f"\n📊 Hasil restart:\n"
     output += f"✅ {valid_count} sesi aktif\n"
-    if valid_count == 0:
-        output += "💡 Tips: Jika sesi valid tapi gagal connect, coba login ulang dengan /login\n"
-    output += "🔄 Proses reconnect selesai!"
+    if valid_count > 0:
+        output += "🔄 Semua koneksi telah direset ulang!"
+    else:
+        output += "💡 Tidak ada sesi aktif, gunakan /login untuk menambahkan"
 
     await event.reply(output)
 
