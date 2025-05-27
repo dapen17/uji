@@ -133,19 +133,43 @@ async def full_reconnect_command(event):
     response_message = "🔍 Memuat sesi yang ada...\n"
     valid_count = 0
     invalid_count = 0
+    processed_sessions = set()  # Untuk melacak sesi yang sudah diproses
 
-    # Loop melalui semua file sesi yang ada
+    # Pertama, hapus semua sesi yang tidak valid
     for session_file in os.listdir(SESSION_DIR):
         if session_file.endswith('.session'):
             session_path = os.path.join(SESSION_DIR, session_file)
             
-            # Ekstrak nomor telepon dari nama file
+            try:
+                client = TelegramClient(session_path, api_id, api_hash)
+                await client.connect()
+                
+                if not await client.is_user_authorized():
+                    if os.path.exists(session_path):
+                        os.remove(session_path)
+                    print(f"Membersihkan sesi tidak valid: {session_file}")
+                
+                await client.disconnect()
+            except:
+                if os.path.exists(session_path):
+                    os.remove(session_path)
+                print(f"Membersihkan sesi error: {session_file}")
+
+    # Sekarang reconnect semua sesi yang tersisa
+    for session_file in os.listdir(SESSION_DIR):
+        if session_file.endswith('.session'):
+            session_path = os.path.join(SESSION_DIR, session_file)
+            
+            if session_file in processed_sessions:
+                continue
+                
+            processed_sessions.add(session_file)
+            
             try:
                 phone = session_file.split('_')[1].replace('.session', '')
             except:
                 phone = "unknown"
             
-            # Coba reconnect
             try:
                 client = TelegramClient(session_path, api_id, api_hash)
                 await client.connect()
@@ -154,12 +178,10 @@ async def full_reconnect_command(event):
                     response_message += f"✅ Sesi untuk {phone} berhasil dihubungkan kembali.\n"
                     valid_count += 1
                     
-                    # Update user_sessions jika perlu
                     user_id = int(session_file.split('_')[0])
                     if user_id not in user_sessions:
                         user_sessions[user_id] = []
                     
-                    # Cek apakah sesi sudah ada
                     session_exists = any(
                         session['phone'] == phone 
                         for session in user_sessions.get(user_id, [])
@@ -169,26 +191,29 @@ async def full_reconnect_command(event):
                         user_sessions[user_id].append({"client": client, "phone": phone})
                         await configure_event_handlers(client, user_id)
                 else:
-                    response_message += f"⚠ Sesi untuk {phone} tidak valid.\n"
+                    response_message += f"⚠ Sesi untuk {phone} tidak valid (dihapus).\n"
                     invalid_count += 1
-                    await client.disconnect()
-                    os.remove(session_path)
+                    if os.path.exists(session_path):
+                        os.remove(session_path)
             except Exception as e:
-                response_message += f"⚠ Sesi untuk {phone} error: {str(e)}\n"
+                response_message += f"⚠ Sesi untuk {phone} error: {str(e)} (dihapus).\n"
                 invalid_count += 1
-                try:
-                    await client.disconnect()
-                except:
-                    pass
                 if os.path.exists(session_path):
                     os.remove(session_path)
+            finally:
+                try:
+                    if 'client' in locals() and client.is_connected():
+                        await client.disconnect()
+                except:
+                    pass
 
     response_message += f"\n✅ Total {valid_count} sesi berhasil dimuat.\n"
-    response_message += f"⚠ Total {invalid_count} sesi tidak valid.\n"
+    response_message += f"⚠ Total {invalid_count} sesi tidak valid/dihapus.\n"
     response_message += "Bot berjalan!"
 
     await event.reply(response_message)
 
+# [Rest of your existing code remains exactly the same...]
 @bot_client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.reply(
