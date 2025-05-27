@@ -100,42 +100,34 @@ async def load_existing_sessions():
 
 @bot_client.on(events.NewMessage(pattern='/restart'))
 async def restart_command(event):
-    """Fungsi untuk merestart bot secara otomatis"""
     admin_ids = {1715573182, 7869529077}  # Ganti dengan ID admin Anda
-    
     sender = await event.get_sender()
+    
     if sender.id not in admin_ids:
         await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
         return
     
     await event.reply("🔄 Memulai proses restart bot...")
     
+    # Simpan semua state sebelum restart
+    save_state()
+    
+    # Matikan semua koneksi dengan benar
+    for user_id in list(user_sessions.keys()):
+        for session_data in list(user_sessions[user_id]):
+            try:
+                await session_data['client'].disconnect()
+            except:
+                pass
+    
     try:
-        # Simpan semua state sebelum restart
-        save_state()
-        
-        # Matikan semua koneksi client dengan benar
-        for user_id in list(user_sessions.keys()):
-            for session_data in list(user_sessions[user_id]):
-                try:
-                    if session_data['client'].is_connected():
-                        await session_data['client'].disconnect()
-                except:
-                    pass
-        
-        # Matikan bot client
-        if bot_client.is_connected():
-            await bot_client.disconnect()
-        
-        # Restart bot dengan menjalankan script yang sama
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
-        
-    except Exception as e:
-        await event.reply(f"⚠️ Gagal melakukan restart: {e}")
-        # Jika gagal, coba jalankan bot kembali
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
+        await bot_client.disconnect()
+    except:
+        pass
+    
+    # Restart bot dengan eksekusi ulang script
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 @bot_client.on(events.NewMessage(pattern='/reconnect'))
 async def reconnect_command(event):
@@ -371,7 +363,7 @@ async def help_command(event):
         "`/logout <Nomor>` - Logout dari sesi yang aktif.\n"
         "`/list` - Menampilkan daftar akun yang sedang login.\n"
         "`/resetall` - Menghapus semua sesi.\n"
-        "`/restart` - Restart bot (admin only)\n"
+        "`/restart` - Restart bot sepenuhnya (admin only).\n"
         "`/help` - Tampilkan daftar perintah."
     )
 
