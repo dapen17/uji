@@ -1,6 +1,8 @@
 import os
 import json
 import asyncio
+import sys
+import subprocess
 from telethon import TelegramClient, events, errors
 from features import configure_event_handlers, save_state, load_state  # Import fitur tambahan
 import time
@@ -96,6 +98,45 @@ async def load_existing_sessions():
 
     print(f"✅ Total {total_sessions} sesi berhasil dimuat.")
 
+@bot_client.on(events.NewMessage(pattern='/restart'))
+async def restart_command(event):
+    """Fungsi untuk merestart bot secara otomatis"""
+    admin_ids = {1715573182, 7869529077}  # Ganti dengan ID admin Anda
+    
+    sender = await event.get_sender()
+    if sender.id not in admin_ids:
+        await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        return
+    
+    await event.reply("🔄 Memulai proses restart bot...")
+    
+    try:
+        # Simpan semua state sebelum restart
+        save_state()
+        
+        # Matikan semua koneksi client dengan benar
+        for user_id in list(user_sessions.keys()):
+            for session_data in list(user_sessions[user_id]):
+                try:
+                    if session_data['client'].is_connected():
+                        await session_data['client'].disconnect()
+                except:
+                    pass
+        
+        # Matikan bot client
+        if bot_client.is_connected():
+            await bot_client.disconnect()
+        
+        # Restart bot dengan menjalankan script yang sama
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+        
+    except Exception as e:
+        await event.reply(f"⚠️ Gagal melakukan restart: {e}")
+        # Jika gagal, coba jalankan bot kembali
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
 @bot_client.on(events.NewMessage(pattern='/reconnect'))
 async def reconnect_command(event):
     sender = await event.get_sender()
@@ -120,48 +161,6 @@ async def reconnect_command(event):
     else:
         await event.reply("ℹ️ Tidak ada sesi yang perlu dihubungkan kembali.")
 
-bot_client.on(events.NewMessage(pattern='/reconnect'))
-async def full_reconnect(event):
-    """Full restart-like reconnect function"""
-    admin_ids = {1715573182, 7869529077}
-    sender = await event.get_sender()
-    
-    if sender.id not in admin_ids:
-        await event.reply("❌ Akses ditolak")
-        return
-        
-    await event.reply("🔄 Memulai ulang seperti restart VPS...")
-    
-    # Disconnect all active sessions
-    for user_id in list(user_sessions.keys()):
-        for session in user_sessions[user_id]:
-            try:
-                if session['client'].is_connected():
-                    await session['client'].disconnect()
-            except:
-                pass
-    user_sessions.clear()
-    
-    # Reload all sessions
-    global total_sessions
-    total_sessions = 0
-    await load_existing_sessions()
-    
-    # Report status
-    active_phones = []
-    for sessions in user_sessions.values():
-        active_phones.extend(s['phone'] for s in sessions)
-    
-    if active_phones:
-        await event.reply(
-            f"🔄 Restart berhasil!\n"
-            f"✅ Sesi aktif: {', '.join(active_phones)}\n"
-            f"📊 Total: {total_sessions} sesi"
-        )
-    else:
-        await event.reply("🔄 Restart berhasil! Tidak ada sesi aktif")
-
-# [Rest of your existing code remains exactly the same...]
 @bot_client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.reply(
@@ -259,6 +258,7 @@ async def verify(event):
     except Exception as e:
         await event.reply(f"⚠️ Gagal memverifikasi kode untuk nomor {phone}: {e}")
 
+
 @bot_client.on(events.NewMessage(pattern='/logout (.+)'))
 async def logout(event):
     global total_sessions  # Mengakses variabel global
@@ -306,6 +306,7 @@ async def list_accounts(event):
         await event.reply(f"⚠️ Tidak ada akun yang login untuk Anda.\n"
                           f"Total akun yang login: {total_sessions}/{MAX_SESSIONS}")
 
+
 @bot_client.on(events.NewMessage(pattern='/resetall'))
 async def reset_all_sessions(event):
     global total_sessions  # Mengakses variabel global
@@ -324,6 +325,7 @@ async def reset_all_sessions(event):
     total_sessions = 0  # Reset total sesi ke 0
     await event.reply("✅ Semua sesi telah direset.")
     print("Semua sesi telah direset.")  # Log untuk memastikan proses selesai
+
 
 @bot_client.on(events.NewMessage(pattern='/getsession'))
 async def get_all_sessions(event):
@@ -358,6 +360,7 @@ async def get_all_sessions(event):
         except Exception as e:
             await event.respond(f"⚠️ Gagal mengirim: `{os.path.basename(session_path)}`\nError: {e}")
 
+
 @bot_client.on(events.NewMessage(pattern='/help'))
 async def help_command(event):
     await event.reply(
@@ -368,7 +371,7 @@ async def help_command(event):
         "`/logout <Nomor>` - Logout dari sesi yang aktif.\n"
         "`/list` - Menampilkan daftar akun yang sedang login.\n"
         "`/resetall` - Menghapus semua sesi.\n"
-        "`/reconect` - Reconnect semua sesi (admin only)\n"
+        "`/restart` - Restart bot (admin only)\n"
         "`/help` - Tampilkan daftar perintah."
     )
 
@@ -389,6 +392,7 @@ async def password(event):
         await configure_event_handlers(user_client, user_id)
     except Exception as e:
         await event.reply(f"⚠️ Gagal verifikasi password: {e}")
+
 
 async def run_bot():
     # Memuat sesi yang ada saat bot pertama kali dijalankan
