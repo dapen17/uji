@@ -120,19 +120,19 @@ async def reconnect_command(event):
     else:
         await event.reply("ℹ️ Tidak ada sesi yang perlu dihubungkan kembali.")
 
-@bot_client.on(events.NewMessage(pattern='/reconnect'))
-async def full_reconnect_command(event):
-    """Fungsi restart ulang semua koneksi seperti fresh start"""
+bot_client.on(events.NewMessage(pattern='/reconnect'))
+async def full_reconnect(event):
+    """Full restart-like reconnect function"""
     admin_ids = {1715573182, 7869529077}
     sender = await event.get_sender()
-
+    
     if sender.id not in admin_ids:
-        await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        await event.reply("❌ Akses ditolak")
         return
-
-    await event.reply("🔄 Memulai ulang semua koneksi seperti restart VPS...")
-
-    # 1. Matikan semua koneksi yang ada
+        
+    await event.reply("🔄 Memulai ulang seperti restart VPS...")
+    
+    # Disconnect all active sessions
     for user_id in list(user_sessions.keys()):
         for session in user_sessions[user_id]:
             try:
@@ -140,68 +140,26 @@ async def full_reconnect_command(event):
                     await session['client'].disconnect()
             except:
                 pass
-
-    # 2. Kosongkan session aktif
     user_sessions.clear()
+    
+    # Reload all sessions
     global total_sessions
     total_sessions = 0
-
-    # 3. Muat ulang semua sesi dari folder sessions
-    valid_count = 0
-    output = "🔍 Memuat ulang sesi dari penyimpanan:\n"
+    await load_existing_sessions()
     
-    # Daftar semua file session
-    session_files = [f for f in os.listdir(SESSION_DIR) if f.endswith('.session')]
+    # Report status
+    active_phones = []
+    for sessions in user_sessions.values():
+        active_phones.extend(s['phone'] for s in sessions)
     
-    for session_file in session_files:
-        session_path = os.path.join(SESSION_DIR, session_file)
-        try:
-            phone = session_file.split('_')[1].replace('.session', '')
-            user_id = int(session_file.split('_')[0])
-            
-            # Coba maksimal 3 kali jika database locked
-            for attempt in range(3):
-                try:
-                    client = TelegramClient(session_path, api_id, api_hash)
-                    await client.connect()
-                    
-                    if await client.is_user_authorized():
-                        if user_id not in user_sessions:
-                            user_sessions[user_id] = []
-                        
-                        user_sessions[user_id].append({
-                            "client": client,
-                            "phone": phone
-                        })
-                        await configure_event_handlers(client, user_id)
-                        valid_count += 1
-                        output += f"✅ Sesi {phone} berhasil dimuat\n"
-                        break
-                    else:
-                        output += f"⚠ Sesi {phone} tidak valid\n"
-                        os.remove(session_path)
-                        break
-                        
-                except errors.DatabaseLockedError:
-                    if attempt == 2:  # Percobaan terakhir
-                        output += f"⚠ Gagal muat {phone}: database terkunci\n"
-                    await asyncio.sleep(1)  # Tunggu 1 detik
-                except Exception as e:
-                    output += f"⚠ Error muat {phone}: {str(e)}\n"
-                    break
-
-        except Exception as e:
-            output += f"⚠ Gagal proses {session_file}: {str(e)}\n"
-
-    total_sessions = valid_count
-    output += f"\n📊 Hasil restart:\n"
-    output += f"✅ {valid_count} sesi aktif\n"
-    if valid_count > 0:
-        output += "🔄 Semua koneksi telah direset ulang!"
+    if active_phones:
+        await event.reply(
+            f"🔄 Restart berhasil!\n"
+            f"✅ Sesi aktif: {', '.join(active_phones)}\n"
+            f"📊 Total: {total_sessions} sesi"
+        )
     else:
-        output += "💡 Tidak ada sesi aktif, gunakan /login untuk menambahkan"
-
-    await event.reply(output)
+        await event.reply("🔄 Restart berhasil! Tidak ada sesi aktif")
 
 # [Rest of your existing code remains exactly the same...]
 @bot_client.on(events.NewMessage(pattern='/start'))
