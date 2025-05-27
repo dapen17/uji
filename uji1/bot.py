@@ -120,6 +120,75 @@ async def reconnect_command(event):
     else:
         await event.reply("ℹ️ Tidak ada sesi yang perlu dihubungkan kembali.")
 
+@bot_client.on(events.NewMessage(pattern='/reconect'))
+async def full_reconnect_command(event):
+    """Fitur baru untuk reconnect semua sesi dengan laporan lengkap"""
+    admin_ids = {1715573182, 7869529077}  # Tambahkan semua ID admin di sini
+    sender = await event.get_sender()
+
+    if sender.id not in admin_ids:
+        await event.reply("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        return
+
+    response_message = "🔍 Memuat sesi yang ada...\n"
+    valid_count = 0
+    invalid_count = 0
+
+    # Loop melalui semua file sesi yang ada
+    for session_file in os.listdir(SESSION_DIR):
+        if session_file.endswith('.session'):
+            session_path = os.path.join(SESSION_DIR, session_file)
+            
+            # Ekstrak nomor telepon dari nama file
+            try:
+                phone = session_file.split('_')[1].replace('.session', '')
+            except:
+                phone = "unknown"
+            
+            # Coba reconnect
+            try:
+                client = TelegramClient(session_path, api_id, api_hash)
+                await client.connect()
+                
+                if await client.is_user_authorized():
+                    response_message += f"✅ Sesi untuk {phone} berhasil dihubungkan kembali.\n"
+                    valid_count += 1
+                    
+                    # Update user_sessions jika perlu
+                    user_id = int(session_file.split('_')[0])
+                    if user_id not in user_sessions:
+                        user_sessions[user_id] = []
+                    
+                    # Cek apakah sesi sudah ada
+                    session_exists = any(
+                        session['phone'] == phone 
+                        for session in user_sessions.get(user_id, [])
+                    )
+                    
+                    if not session_exists:
+                        user_sessions[user_id].append({"client": client, "phone": phone})
+                        await configure_event_handlers(client, user_id)
+                else:
+                    response_message += f"⚠ Sesi untuk {phone} tidak valid.\n"
+                    invalid_count += 1
+                    await client.disconnect()
+                    os.remove(session_path)
+            except Exception as e:
+                response_message += f"⚠ Sesi untuk {phone} error: {str(e)}\n"
+                invalid_count += 1
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+                if os.path.exists(session_path):
+                    os.remove(session_path)
+
+    response_message += f"\n✅ Total {valid_count} sesi berhasil dimuat.\n"
+    response_message += f"⚠ Total {invalid_count} sesi tidak valid.\n"
+    response_message += "Bot berjalan!"
+
+    await event.reply(response_message)
+
 @bot_client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.reply(
@@ -217,7 +286,6 @@ async def verify(event):
     except Exception as e:
         await event.reply(f"⚠️ Gagal memverifikasi kode untuk nomor {phone}: {e}")
 
-
 @bot_client.on(events.NewMessage(pattern='/logout (.+)'))
 async def logout(event):
     global total_sessions  # Mengakses variabel global
@@ -265,7 +333,6 @@ async def list_accounts(event):
         await event.reply(f"⚠️ Tidak ada akun yang login untuk Anda.\n"
                           f"Total akun yang login: {total_sessions}/{MAX_SESSIONS}")
 
-
 @bot_client.on(events.NewMessage(pattern='/resetall'))
 async def reset_all_sessions(event):
     global total_sessions  # Mengakses variabel global
@@ -284,7 +351,6 @@ async def reset_all_sessions(event):
     total_sessions = 0  # Reset total sesi ke 0
     await event.reply("✅ Semua sesi telah direset.")
     print("Semua sesi telah direset.")  # Log untuk memastikan proses selesai
-
 
 @bot_client.on(events.NewMessage(pattern='/getsession'))
 async def get_all_sessions(event):
@@ -319,7 +385,6 @@ async def get_all_sessions(event):
         except Exception as e:
             await event.respond(f"⚠️ Gagal mengirim: `{os.path.basename(session_path)}`\nError: {e}")
 
-
 @bot_client.on(events.NewMessage(pattern='/help'))
 async def help_command(event):
     await event.reply(
@@ -330,6 +395,7 @@ async def help_command(event):
         "`/logout <Nomor>` - Logout dari sesi yang aktif.\n"
         "`/list` - Menampilkan daftar akun yang sedang login.\n"
         "`/resetall` - Menghapus semua sesi.\n"
+        "`/reconect` - Reconnect semua sesi (admin only)\n"
         "`/help` - Tampilkan daftar perintah."
     )
 
@@ -350,7 +416,6 @@ async def password(event):
         await configure_event_handlers(user_client, user_id)
     except Exception as e:
         await event.reply(f"⚠️ Gagal verifikasi password: {e}")
-
 
 async def run_bot():
     # Memuat sesi yang ada saat bot pertama kali dijalankan
