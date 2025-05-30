@@ -224,21 +224,21 @@ async def configure_event_handlers(client, user_id):
     async def help_handler(event):
         help_text = (
             "📋 **Daftar Perintah yang Tersedia:**\n\n"
-            "1. ary hastle [pesan] [waktu][s/m/h/d]\n"
+            "1. cloe hastle [pesan] [waktu][s/m/h/d]\n"
             "   Spam pesan di grup dengan interval tertentu.\n"
-            "2. ary stop\n"
+            "2. cloe stop\n"
             "   Hentikan spam di grup.\n"
-            "3. ary ping\n"
+            "3. cloe ping\n"
             "   Tes koneksi bot.\n"
-            "4. ary bcstar [pesan]\n"
+            "4. cloe bcstar [pesan]\n"
             "   Broadcast ke semua chat kecuali blacklist.\n"
-            "5. ary bcstargr [waktu][s/m/h/d] [pesan]\n"
+            "5. cloe bcstargr [waktu][s/m/h/d] [pesan]\n"
             "   Broadcast hanya ke grup dengan interval tertentu.\n"
-            "6. ary stopbcstargr[1-10]\n"
+            "6. cloe stopbcstargr[1-10]\n"
             "   Hentikan broadcast ke grup tertentu.\n"
-            "7. ary bl\n"
+            "7. cloe bl\n"
             "    Tambahkan grup/chat ke blacklist.\n"
-            "8. ary unbl\n"
+            "8. cloe unbl\n"
             "    Hapus grup/chat dari blacklist.\n"
         )
         await event.reply(help_text)
@@ -249,7 +249,7 @@ async def configure_event_handlers(client, user_id):
         uid = me.id
         message_lines = event.raw_text.split('\n', 1)
         if len(message_lines) < 2:
-            await event.reply("⚠️ Harap isi auto-reply setelah baris pertama.\nContoh:\nary setreply\nHalo ini balasan otomatis.")
+            await event.reply("⚠️ Harap isi auto-reply setelah baris pertama.\nContoh:\ncloe setreply\nHalo ini balasan otomatis.")
             return
 
         reply_message = message_lines[1]
@@ -262,7 +262,8 @@ async def configure_event_handlers(client, user_id):
         if event.is_private:
             me = await client.get_me()
             uid = me.id
-            if uid in auto_replies and auto_replies[uid]:
+            # Periksa apakah auto-reply aktif dan pesan tidak berasal dari bot sendiri
+            if uid in auto_replies and auto_replies[uid] and not event.out:
                 try:
                     sender = await event.get_sender()
                     peer = InputPeerUser(sender.id, sender.access_hash)
@@ -277,17 +278,33 @@ async def configure_event_handlers(client, user_id):
 
     @client.on(events.NewMessage(pattern=r'^cloe stopall$'))
     async def stop_all_handler(event):
-        for group_key in active_bc_interval[user_id].keys():
-            active_bc_interval[user_id][group_key] = False
+        me = await client.get_me()
+        user_id = me.id
+        
+        # Stop semua broadcast grup
+        active_bc_interval[user_id].clear()
+        
+        # Hapus auto-reply
         auto_replies[user_id] = ""
+        
+        # Kosongkan blacklist
         blacklist.clear()
-        for group_id in active_groups.keys():
-            active_groups[group_id][user_id] = False
-        for group_key in active_bc_interval[user_id].keys():
-            if active_bc_interval[user_id][group_key]:
-                active_bc_interval[user_id][group_key] = False
+        
+        # Stop semua spam grup
+        for group_id in list(active_groups.keys()):
+            if user_id in active_groups[group_id]:
+                active_groups[group_id][user_id] = False
+        
+        # Hapus data broadcast
+        if user_id in broadcast_data:
+            broadcast_data[user_id].clear()
+        
         save_state()
-        await event.reply("✅ Semua pengaturan telah direset dan semua broadcast dihentikan.")
+        await event.reply("✅ SEMUA FITUR TELAH DIHENTIKAN DAN DIHAPUS:\n"
+                        "- Semua broadcast dihentikan\n"
+                        "- Auto-reply dinonaktifkan\n"
+                        "- Blacklist dikosongkan\n"
+                        "- Semua spam grup dihentikan")
 
 # Load state saat module diimport
 load_state()
