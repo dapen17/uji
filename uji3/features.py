@@ -298,6 +298,16 @@ async def configure_event_handlers(client, user_id):
         "ketawa sendiri 😭"
     ]
 
+    aku_replies = [
+    "boleeh",
+    "boleeh sayang",
+    "yaudah boleee",
+    "wkwk lucuu bngt si",
+    "for sure",
+    "sweet ga?"
+    ]
+
+
 
     @client.on(events.NewMessage(pattern=r'^cloe setreply\d+'))
     async def set_multi_reply(event):
@@ -487,6 +497,19 @@ async def configure_event_handlers(client, user_id):
                 pass
             return
 
+        # --- Balasan untuk kata 'aku/guwe/gue/me/akuh/etc' ---
+        if re.search(r'\b(gw|gua|gue|guwe|aku|akuh|aq|ak|me|sini|cini|sini|sfs)\b', message_text_lower):
+            try:
+                peer = InputPeerUser(sender.id, sender.access_hash)
+                await asyncio.sleep(random.randint(5, 10))
+                await client.send_read_acknowledge(peer)
+                await asyncio.sleep(2)
+                reply_text = random.choice(aku_replies)
+                await client.send_message(peer, reply_text)
+            except Exception:
+                pass
+            return
+
         # --- Temen/friend/bestie (kalau gak pakai need) ---
         if re.search(r'\b(temen|temenan|friend|friends?|bestie)\b', message_text_lower):
             try:
@@ -514,7 +537,7 @@ async def configure_event_handlers(client, user_id):
 
         # --- Sapaan terakhir (jika tidak mengandung kata-kata penting) ---
         if not re.search(r'\b(nd|need|gf|temen|temenan|friend|friends?|bestie|famb|fambs?t)\b', message_text_lower):
-            if re.search(r'\b(Hi+|hi+|hy+|hay+|halo+|hawo+|halloo+|haloo+)\b', message_text_lower) or re.search(r'\b(hayy|juga)\b', message_text_lower):
+            if re.search(r'\b(Hi+|hi+|Hallo+|hallo+||pee+|pe+|pee+|permisi+|Permisi+||hy+|hay+|halo+|hawo+|halloo+|haloo+)\b', message_text_lower) or re.search(r'\b(hayy|juga)\b', message_text_lower):
                 try:
                     peer = InputPeerUser(sender.id, sender.access_hash)
                     await asyncio.sleep(random.randint(3, 6))
