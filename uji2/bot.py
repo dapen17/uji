@@ -404,7 +404,7 @@ async def run_bot():
             await bot_client.run_until_disconnected()
             retry_count = 0  # Reset retry counter after successful run
             
-        except errors.ConnectionError as e:
+        except (ConnectionError, OSError) as e:  # FIX: Gunakan ConnectionError dan OSError bawaan Python
             retry_count += 1
             print(f"Koneksi terputus ({retry_count}/{max_retries}): {e}")
             if retry_count >= max_retries:
