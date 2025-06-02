@@ -350,7 +350,7 @@ async def configure_event_handlers(client, user_id):
 
         # --- Tambahan khusus: kalau kata done, sudah, makasih, terima kasih dll ---
         thanks_patterns = [
-            r'\b(done|dn|sudah|syudah|oke||dh|sip|udah)\b',
+            r'\b(done|dn|sudah|syudah|oke|dh|sip|udah)\b',
             r'makasih',
             r'terimakasihh yah',
             r'makasiiih lucu sayang',
@@ -469,7 +469,7 @@ async def configure_event_handlers(client, user_id):
                     await asyncio.sleep(random.randint(5, 10))
                     await client.send_read_acknowledge(peer)
                     await asyncio.sleep(2)
-                    options = ["iya need gf,", "need apa aja,", "iya gua need,", "iya need gua"]
+                    options = ["iya need gf", "need apa aja", "iya gua need", "iya need gua"]
                     await client.send_message(peer, random.choice(options))
                 except Exception:
                     pass
