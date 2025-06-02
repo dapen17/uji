@@ -237,12 +237,12 @@ async def configure_event_handlers(client, user_id):
     bot_replies = [
         "wwkwk bukan bot bang",
         "manusia asli bang",
-        "yeuu bukan bukan bot",
+        "yeuu bukan bot bwng",
         "santuy, bukan bot kok",
         "bot apaan? ini manusia asli dan ganteng bre",
-        "asli manusia bro",
-        "jangan salah, manusia asli nih",
-        "ini bukan bot, serius",
+        "asli idol bukan bot gua",
+        "yeu ngadi ngadi, orang gua",
+        "hah bot?",
         "ceelah bukan bot bwng"
     ]
     sorry_replies = [
