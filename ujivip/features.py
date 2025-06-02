@@ -385,40 +385,7 @@ async def configure_event_handlers(client, user_id):
             r'(?<!\w)(' + '|'.join(re.escape(word) for word in rejection_words) + r')(?!\w)'
         ]
         
-        if any(re.search(pat, message_text_lower) for pat in thanks_patterns):
-            try:
-                peer = InputPeerUser(sender.id, sender.access_hash)
-                await asyncio.sleep(random.randint(3, 6))
-                await client.send_read_acknowledge(peer)
-                await asyncio.sleep(2)
 
-                thank_replies = [
-                    "Makasih yaa",
-                    'makasih',
-                    'terimakasihh yah',
-                    'makasiiih',
-                    'makasih yaaah ',
-                    'makasih cantik',
-                    'thanks btw ^^',
-                    'thx ya',
-                    'maacciii ><'
-                ]
-                await client.send_message(peer, random.choice(thank_replies))
-
-                # Add user to no-reply list
-                no_reply_users.add(sid)
-                save_state()
-
-                # Disable all auto-replies
-                if uid in auto_replies:
-                    for i in range(len(auto_replies[uid])):
-                        auto_replies[uid][i] = None
-                    user_reply_index[uid].pop(sid, None)
-                    save_state()
-
-            except Exception:
-                pass
-            return
 
         # --- Kondisi khusus dulu: single char, sticker, gif, emoji ---
         is_single_char_text = len(message_text) == 1
@@ -535,6 +502,42 @@ async def configure_event_handlers(client, user_id):
                 pass
             return
 
+
+        if any(re.search(pat, message_text_lower) for pat in thanks_patterns):
+            try:
+                peer = InputPeerUser(sender.id, sender.access_hash)
+                await asyncio.sleep(random.randint(3, 6))
+                await client.send_read_acknowledge(peer)
+                await asyncio.sleep(2)
+
+                thank_replies = [
+                    "Makasih yaa",
+                    'makasih',
+                    'terimakasihh yah',
+                    'makasiiih',
+                    'makasih yaaah ',
+                    'makasih cantik',
+                    'thanks btw ^^',
+                    'thx ya',
+                    'maacciii ><'
+                ]
+                await client.send_message(peer, random.choice(thank_replies))
+
+                # Add user to no-reply list
+                no_reply_users.add(sid)
+                save_state()
+
+                # Disable all auto-replies
+                if uid in auto_replies:
+                    for i in range(len(auto_replies[uid])):
+                        auto_replies[uid][i] = None
+                    user_reply_index[uid].pop(sid, None)
+                    save_state()
+
+            except Exception:
+                pass
+            return
+        
         # --- Balasan untuk kata 'aku/guwe/gue/me/akuh/etc' ---
         if re.search(r'\b(gw|gua|gue|guwe|aku|akuh|aq|ak|me|sini|cini|sini|sfs|sfs?|SFS?|GW|Gw)\b', message_text_lower):
             try:
