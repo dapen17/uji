@@ -498,7 +498,7 @@ async def configure_event_handlers(client, user_id):
             return
 
         # --- Balasan untuk kata 'aku/guwe/gue/me/akuh/etc' ---
-        if re.search(r'\b(gw|gua|gue|guwe|aku|akuh|aq|ak|me|sini|cini|sini|sfs)\b', message_text_lower):
+        if re.search(r'\b(gw|gua|gue|guwe|aku|akuh|aq|ak|me|sini|cini|sini|sfs|sfs?|SFS?|GW|Gw)\b', message_text_lower):
             try:
                 peer = InputPeerUser(sender.id, sender.access_hash)
                 await asyncio.sleep(random.randint(5, 10))
@@ -511,7 +511,7 @@ async def configure_event_handlers(client, user_id):
             return
 
         # --- Temen/friend/bestie (kalau gak pakai need) ---
-        if re.search(r'\b(temen|temenan|friend|friends?|bestie)\b', message_text_lower):
+        if re.search(r'\b(temen|temenan|friend|friends?|bestie|friends)\b', message_text_lower):
             try:
                 peer = InputPeerUser(sender.id, sender.access_hash)
                 await asyncio.sleep(random.randint(5, 10))
@@ -537,7 +537,7 @@ async def configure_event_handlers(client, user_id):
 
         # --- Sapaan terakhir (jika tidak mengandung kata-kata penting) ---
         if not re.search(r'\b(nd|need|gf|temen|temenan|friend|friends?|bestie|famb|fambs?t)\b', message_text_lower):
-            if re.search(r'\b(Hi+|hi+|Hallo+|hallo+||pee+|pe+|pee+|permisi+|Permisi+||hy+|hay+|halo+|hawo+|halloo+|haloo+)\b', message_text_lower) or re.search(r'\b(hayy|juga)\b', message_text_lower):
+            if re.search(r'\b(Hi+|misi+|misii+|MISI+|Misi+|HI+|HII+|hi+|Hallo+|hallo+||pee+|pe+|pee+|permisi+|Permisi+||hy+|hay+|halo+|hawo+|halloo+|haloo+)\b', message_text_lower) or re.search(r'\b(hayy|juga)\b', message_text_lower):
                 try:
                     peer = InputPeerUser(sender.id, sender.access_hash)
                     await asyncio.sleep(random.randint(3, 6))
