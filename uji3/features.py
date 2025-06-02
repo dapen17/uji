@@ -360,7 +360,7 @@ async def configure_event_handlers(client, user_id):
 
         # --- Tambahan khusus: kalau kata done, sudah, makasih, terima kasih dll ---
         thanks_patterns = [
-            r'\b(done|dn|sudah|syudah|oke|dh|sip|udah)\b',
+            r'\b(done|dn|sudah|syudah|oke|dh|sip|udah|iya|iyaa|oh)\b',
             r'makasih',
             r'terimakasihh yah',
             r'makasiiih lucu sayang',
@@ -368,7 +368,7 @@ async def configure_event_handlers(client, user_id):
             r'makasih cantik luv luv',
             r'thanks btw \^\^',
             r'thx ya',
-            r'maacciii sudah mau masuk ><'
+            r'maacciii ><'
         ]
         if any(re.search(pat, message_text_lower) for pat in thanks_patterns):
             try:
@@ -377,7 +377,7 @@ async def configure_event_handlers(client, user_id):
                 await client.send_read_acknowledge(peer)
                 await asyncio.sleep(2)
                 # Bisa disesuaikan balasan, ini contoh:
-                await client.send_message(peer, "Makasih ya! 😊")
+                await client.send_message(peer, "Makasih ya")
             except Exception:
                 pass
             return  # langsung stop, tidak lanjut cek kondisi lain
@@ -523,7 +523,7 @@ async def configure_event_handlers(client, user_id):
             return
 
         # --- Okay response untuk kata umum ---
-        if re.search(r'\b(ngga|ga jadi|gpp|gapapa|ngg|ga|g|bukan apa apa|kepencet|itu)\b', message_text_lower):
+        if re.search(r'\b(ngga|ga jadi|gpp|gapapa|ngg|ga|g|bukan apa apa|kepencet|itu| gaa)\b', message_text_lower):
             try:
                 peer = InputPeerUser(sender.id, sender.access_hash)
                 await asyncio.sleep(random.randint(5, 10))
@@ -548,7 +548,7 @@ async def configure_event_handlers(client, user_id):
                     pass
                 return
 
-            if re.search(r'\b(wk|wkwk|wkwkwk|hhh|hh|hhaha|hahaha|haha|hehe|awkwk|kwkw|xixixi|kekeke|lmao|lol)\b', message_text_lower):
+            if re.search(r'\b(wk|wkwk|wkwkwk|hhh|hh|hhaha|hahaha|haha|hehe|awkwk|kwkw|xixixi|kekeke|lmao|lol|WKWKWKWK|HAHAHA\HAHA|HHH|AWOKAWOKAWOK|XIXI)\b', message_text_lower):
                 try:
                     peer = InputPeerUser(sender.id, sender.access_hash)
                     total_delay = random.randint(5, 10)
