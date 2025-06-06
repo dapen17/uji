@@ -1,7 +1,7 @@
 from telethon.sync import TelegramClient
 from telethon.errors.rpcerrorlist import (
     PeerFloodError, FloodWaitError, UserPrivacyRestrictedError,
-    UserBotError, TooManyRequestsError
+    UserBotError
 )
 from telethon.tl.functions.channels import InviteToChannelRequest, GetFullChannelRequest
 import csv
