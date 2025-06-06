@@ -9,7 +9,7 @@ import traceback
 # Konfigurasi awal
 api_id = 25540929
 api_hash = "57b0e14140418e8d350790c0962c59ea"
-phone_numbers = ["+6282210517552"]
+phone_numbers = ["+6282130460088"]
 group_username = "@LPMHASTLE2"
 target_group_link = "@Lpm_Roleplayer_23"
 csv_file = 'members.csv'
